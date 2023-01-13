@@ -732,10 +732,10 @@ class ClientTest < TrilogyTest
   end
 
   def test_connection_invalid_dns
-    ex = assert_raises Trilogy::Error do
+    ex = assert_raises Trilogy::BaseConnectionError do
       new_tcp_client(host: "mysql.invalid", port: 3306)
     end
-    assert_equal "trilogy_connect - unable to connect to mysql.invalid:3306: TRILOGY_DNS_ERR", ex.message
+    assert_equal "trilogy_connect - unable to connect to mysql.invalid:3306: TRILOGY_DNS_ERROR", ex.message
   end
 
   def test_memsize
