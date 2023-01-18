@@ -80,6 +80,7 @@ static struct trilogy_ctx *get_open_ctx(VALUE obj)
 NORETURN(static void handle_trilogy_error(struct trilogy_ctx *, int, const char *, ...));
 static void handle_trilogy_error(struct trilogy_ctx *ctx, int rc, const char *msg, ...)
 {
+    printf("handle_trilogy_error\n");
     va_list args;
     va_start(args, msg);
     VALUE rbmsg = rb_vsprintf(msg, args);
