@@ -20,11 +20,12 @@
 VALUE Trilogy_CastError;
 static VALUE Trilogy_BaseConnectionError, Trilogy_ProtocolError, Trilogy_SSLError, Trilogy_QueryError,
     Trilogy_ConnectionClosedError, Trilogy_ConnectionRefusedError, Trilogy_ConnectionResetError,
-    Trilogy_TimeoutError, Trilogy_SyscallError, Trilogy_Result;
+    Trilogy_TimeoutError, Trilogy_SyscallError, Trilogy_Result, Trilogy_Statement;
 
 static ID id_socket, id_host, id_port, id_username, id_password, id_found_rows, id_connect_timeout, id_read_timeout,
     id_write_timeout, id_keepalive_enabled, id_keepalive_idle, id_keepalive_interval, id_keepalive_count,
-    id_ivar_affected_rows, id_ivar_fields, id_ivar_last_insert_id, id_ivar_rows, id_ivar_query_time, id_password,
+    id_ivar_affected_rows, id_ivar_fields, id_ivar_last_insert_id, id_ivar_rows, id_ivar_query_time,
+    id_ivar_statement_id, id_ivar_column_count, id_ivar_parameter_count, id_ivar_warning_count, id_password,
     id_database, id_ssl_ca, id_ssl_capath, id_ssl_cert, id_ssl_cipher, id_ssl_crl, id_ssl_crlpath, id_ssl_key,
     id_ssl_mode, id_tls_ciphersuites, id_tls_min_version, id_tls_max_version, id_multi_statement, id_multi_result,
     id_from_code, id_from_errno, id_connection_options, id_max_allowed_packet;
@@ -1030,6 +1031,66 @@ static VALUE rb_trilogy_server_status(VALUE self) { return LONG2FIX(get_open_ctx
 
 static VALUE rb_trilogy_server_version(VALUE self) { return rb_str_new_cstr(get_open_ctx(self)->server_version); }
 
+typedef struct {
+    trilogy_stmt_t stmt;
+    VALUE connection;
+} trilogy_prepared_statement_t;
+
+static void rb_trilogy_stmt_mark(void *ptr)
+{
+    const trilogy_prepared_statement_t *trilogy_prepared_stmt = ptr;
+    rb_gc_mark(trilogy_prepared_stmt->connection);
+}
+
+static void rb_trilogy_stmt_free(void *ptr)
+{
+    trilogy_prepared_statement_t *trilogy_prepared_stmt = ptr;
+    struct trilogy_ctx *ctx = get_ctx(trilogy_prepared_stmt->connection);
+
+    if (ctx->conn.socket != NULL) {
+        trilogy_stmt_close(&ctx->conn, &trilogy_prepared_stmt->stmt);
+    }
+    xfree(trilogy_prepared_stmt);
+};
+
+static size_t rb_trilogy_stmt_memsize(const void * ptr) {
+    return sizeof(trilogy_prepared_statement_t);
+};
+
+static const rb_data_type_t rb_trilogy_stmt_type = {
+  .wrap_struct_name = "rb_trilogy_stmt",
+    .function = {
+        .dmark = rb_trilogy_stmt_mark,
+        .dfree = rb_trilogy_stmt_free,
+        .dsize = rb_trilogy_stmt_memsize,
+    },
+    .flags = RUBY_TYPED_WB_PROTECTED
+};
+
+static VALUE rb_trilogy_prepare_statement(VALUE self, VALUE query) {
+    struct trilogy_ctx *ctx = get_open_ctx(self);
+    trilogy_prepared_statement_t *trilogy_stmt;
+
+    StringValue(query);
+
+    VALUE rb_stmt = TypedData_Make_Struct(Trilogy_Statement, trilogy_prepared_statement_t, &rb_trilogy_stmt_type, trilogy_stmt);
+    RB_OBJ_WRITE(rb_stmt, &trilogy_stmt->connection, self);
+
+    // Ensure the string is in the encoding the connection is expecting
+    query = rb_str_export_to_enc(query, rb_to_encoding(ctx->encoding));
+
+    // Instantiate statement
+    int rc = trilogy_stmt_prepare(&ctx->conn, RSTRING_PTR(query), RSTRING_LEN(query), &trilogy_stmt->stmt);
+
+    RB_GC_GUARD(query);
+
+    if (rc != TRILOGY_OK) {
+        handle_trilogy_error(ctx, rc, "trilogy_stmt_prepare");
+    }
+
+    return rb_stmt;
+}
+
 RUBY_FUNC_EXPORTED void Init_cext()
 {
     VALUE Trilogy = rb_const_get(rb_cObject, rb_intern("Trilogy"));
@@ -1058,6 +1119,7 @@ RUBY_FUNC_EXPORTED void Init_cext()
     rb_define_method(Trilogy, "more_results_exist?", rb_trilogy_more_results_exist, 0);
     rb_define_method(Trilogy, "next_result", rb_trilogy_next_result, 0);
     rb_define_method(Trilogy, "set_server_option", rb_trilogy_set_server_option, 1);
+    rb_define_method(Trilogy, "prepare", rb_trilogy_prepare_statement, 1);
     rb_define_const(Trilogy, "TLS_VERSION_10", INT2NUM(TRILOGY_TLS_VERSION_10));
     rb_define_const(Trilogy, "TLS_VERSION_11", INT2NUM(TRILOGY_TLS_VERSION_11));
     rb_define_const(Trilogy, "TLS_VERSION_12", INT2NUM(TRILOGY_TLS_VERSION_12));
@@ -1104,6 +1166,9 @@ RUBY_FUNC_EXPORTED void Init_cext()
     Trilogy_Result = rb_const_get(Trilogy, rb_intern("Result"));
     rb_global_variable(&Trilogy_Result);
 
+    Trilogy_Statement = rb_const_get(Trilogy, rb_intern("Statement"));
+    rb_global_variable(&Trilogy_Statement);
+
     Trilogy_SyscallError = rb_const_get(Trilogy, rb_intern("SyscallError"));
     rb_global_variable(&Trilogy_SyscallError);
 
@@ -1146,6 +1211,10 @@ RUBY_FUNC_EXPORTED void Init_cext()
     id_ivar_rows = rb_intern("@rows");
     id_ivar_query_time = rb_intern("@query_time");
     id_connection_options = rb_intern("@connection_options");
+    id_ivar_statement_id = rb_intern("@id");
+    id_ivar_column_count = rb_intern("@column_count");
+    id_ivar_parameter_count = rb_intern("@parameter_count");
+    id_ivar_warning_count = rb_intern("@warning_count");
 
     rb_trilogy_cast_init();
 

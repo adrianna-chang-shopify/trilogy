@@ -3,6 +3,7 @@
 require "trilogy/version"
 require "trilogy/error"
 require "trilogy/result"
+require "trilogy/statement"
 require "trilogy/cext"
 require "trilogy/encoding"
 
