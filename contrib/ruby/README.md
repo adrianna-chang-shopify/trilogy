@@ -58,6 +58,22 @@ For instance:
 bundle exec rake build
 ```
 
+### Prepared statements
+
+To build a prepared statement, use `Trilogy#prepare` with `?` in place of any parameter values.
+Execute the statement with `Trilogy::Statement#execute`, specifying any parameter values.
+
+``` ruby
+client = Trilogy.new(host: "127.0.0.1", port: 3306, username: "root", read_timeout: 2)
+
+statement = client.prepare("SELECT * FROM users WHERE id = ?")
+result1 = statement.execute(1)
+result2 = statement.execute(2)
+
+statement = @client.prepare("SELECT * FROM users WHERE id >= ? AND name LIKE ?")
+result = statement.execute(1, "Joe")
+```
+
 ## Contributing
 
 The official Ruby bindings are inside of the canonical trilogy repository itself.
