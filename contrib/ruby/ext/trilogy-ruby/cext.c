@@ -411,11 +411,14 @@ static void authenticate(struct trilogy_ctx *ctx, trilogy_handshake_t *handshake
         }
 
         if (rc != TRILOGY_AGAIN) {
+            printf("rc != TRILOGY_AGAIN, rc: %d\n", rc);
             handle_trilogy_error(ctx, rc, "trilogy_auth_recv");
         }
 
         rc = trilogy_sock_wait_read(ctx->conn.socket);
         if (rc != TRILOGY_OK) {
+            printf("rc != TRILOGY_OK, rc: %d\n", rc);
+
             handle_trilogy_error(ctx, rc, "trilogy_auth_recv");
         }
     }

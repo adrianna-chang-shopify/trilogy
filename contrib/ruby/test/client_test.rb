@@ -645,6 +645,13 @@ class ClientTest < TrilogyTest
     assert_includes err.message, "Access denied for user 'native'"
   end
 
+  def test_bad_username_error
+    err = assert_raises Trilogy::ConnectionError do
+      new_tcp_client(username: "unknown")
+    end
+    puts err
+  end
+
   def test_connection_closed_error
     client = new_tcp_client
 
