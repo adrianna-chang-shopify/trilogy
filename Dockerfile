@@ -11,6 +11,11 @@ RUN wget https://github.com/postmodern/ruby-install/releases/download/v0.9.0/rub
     cd ruby-install-0.9.0/ && \
     make install
 
+RUN set -eux; \
+  apt-get update; \
+  apt-get install -y mysql-community-test="${MYSQL_VERSION}"; \
+  rm -rf /var/lib/apt/lists/*
+
 ARG RUBY_VERSION=3.2
 RUN ruby-install --system ruby ${RUBY_VERSION}
 RUN ruby --version
